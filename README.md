@@ -6,10 +6,18 @@
 
 ## 打开与烧录
 
+GitHub 仓库：[HYL886/ESP-S31](https://github.com/HYL886/ESP-S31)。在新电脑上先获取源码：
+
+```powershell
+git clone https://github.com/HYL886/ESP-S31.git
+cd ESP-S31
+code .
+```
+
 新电脑获取源码后，直接用 VS Code 打开仓库根目录。使用 ESP-IDF 扩展选择本机安装的、支持 esp32s31 的 IDF 环境和实际串口；`.vscode/settings.example.json` 是通用配置参考，不包含其他电脑的安装路径或串口号。首次构建会自动获取依赖，Wi-Fi 名称和密码通过开发板屏幕输入。
 
-1. 在 VS Code 中“文件 → 打开文件夹”，打开本文件夹 `s31_display`，应能看到顶层 `CMakeLists.txt`、`main` 文件夹和 `sdkconfig.defaults`。
-   也可以选择“文件 → 从文件打开工作区”，打开本目录外面的 `s31_display.code-workspace`。
+1. 在 VS Code 中“文件 → 打开文件夹”，打开源码根目录（本机为 `s31_display`，克隆后默认是 `ESP-S31`），应能看到顶层 `CMakeLists.txt`、`main` 文件夹和 `sdkconfig.defaults`。
+   本机也可以选择“文件 → 从文件打开工作区”，打开本目录外面的 `s31_display.code-workspace`；这个便捷工作区文件不属于仓库源码。
 2. 执行 `ESP-IDF: Select Current ESP-IDF Version`，选择电脑已有的 `master`，目录为 `C:\esp\master\esp-idf`。
 3. 将数据线连接开发板的 UART Type-C 口，保持屏幕子板连接，打开板上电源。当前串口配置为 COM11；换接口后以设备管理器显示的串口为准。
 4. 先在之前的串口监视器按 `Ctrl + ]` 退出，释放串口。
