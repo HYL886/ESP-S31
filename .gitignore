@@ -1,0 +1,12 @@
+/build/
+/managed_components/
+/sdkconfig
+/sdkconfig.old
+/main/wifi_config.h
+/.vscode/settings.json
+*.bin
+*.elf
+*.map
+*.exe
+*.log
+__pycache__/

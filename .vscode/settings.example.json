@@ -1,0 +1,9 @@
+{
+    "idf.customExtraVars": {
+        "IDF_TARGET": "esp32s31"
+    },
+    "idf.flashType": "UART",
+    "idf.openOcdConfigs": [
+        "board/esp32s31-builtin.cfg"
+    ]
+}

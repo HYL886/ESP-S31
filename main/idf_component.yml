@@ -1,0 +1,5 @@
+description: First screen and touch project for ESP32-S31-Korvo-1
+dependencies:
+  idf: ">=6.1"
+  espressif/esp32_s31_korvo_1: "1.0.1"
+  lvgl/lvgl: "9.3.0"
