@@ -1,20 +1,23 @@
-# Wi-Fi 网络时钟：屏幕配网版
+# Wi-Fi 网络时钟：扫描选网版
 
 ## 本次改了什么
 
-上一版把 Wi-Fi 名称和密码写在 main/wifi_config.h 中，换网络需要重新编译。本次改成屏幕输入、连接成功后保存、重启自动连接。
+最初把 Wi-Fi 名称和密码写在头文件中，换网络需要重新编译；随后改为屏幕输入。当前版本再增加自动扫描：打开配网页就搜索附近热点，点选名称后输入密码，连接成功后保存，重启自动连接。
 
 | 文件 | 具体改动 |
 | --- | --- |
 | main/main.c | 主界面右上角增加 Wi-Fi 按钮；计时回调刷新配网页状态，并提示首次配网或连接失败。保留已修改的标题、加 10 和 Reset 按钮。 |
-| main/wifi_setup.c / wifi_setup.h | 新增配网页：SSID 输入框、隐藏密码输入框、屏幕键盘、Connect 和 Back 按钮、连接及保存状态提示。 |
+| main/wifi_setup.c / wifi_setup.h | 配网页拆成热点列表和输入页；自动扫描、Rescan 重扫、点选名称后输入密码，Manual name 供隐藏热点使用。 |
 | main/wifi_clock.c / wifi_clock.h | 删除对 wifi_config.h 的依赖；通过队列接收屏幕输入。独立任务管理停止旧连接、切换网络、重试、校时与 NVS 读写；界面只读取不含密码的状态快照。 |
 | main/wifi_credentials.c / wifi_credentials.h | 新增输入校验：SSID 按 UTF-8 字节计数，不超过 32 字节；密码为 8–63 字节，或 64 位十六进制 PSK；空密码表示开放网络。 |
+| main/wifi_networks.c / wifi_networks.h | 新增扫描结果数据结构、按名称/安全类型去重、保留较强信号、按 RSSI 排序及最多 20 项的限制。 |
 | main/CMakeLists.txt | 加入配网页及校验源文件，并显式声明网络、定时器与 NVS 组件依赖。 |
 | tests/wifi_credentials_test.c | 增加名称长度、UTF-8 字节数、空密码、短密码、64 位 PSK 等边界测试。 |
+| tests/wifi_networks_test.c | 验证重复热点、不同安全类型、强弱信号、中文/32 字节 SSID、空名称及结果容量边界。 |
+| sdkconfig.defaults | 增加 SourceHanSansSC 16 CJK 字体，作为热点名称和 SSID 输入框的常用汉字备用字体。 |
 | README.md | 更新为屏幕配网的入口和操作说明。 |
 
-旧的 main/wifi_config.h 和 wifi_config.example.h 留在目录中，但新程序不再包含、读取它们。已经在旧头文件中填写的内容不会自动迁移到设备，请在新界面重新配置一次。后续换 Wi-Fi 无须改代码或重新编译。
+已删除停用的 main/wifi_config.h、main/wifi_config.example.h 和未被扩展读取的 .vscode/settings.example.json，也移除了没有调用者的 wifi_clock_is_connected() 便捷接口。现在不需要创建或填写任何 Wi-Fi 头文件；请直接在开发板上选网配网。本机正在使用的 .vscode/settings.json 保留，且不上传 GitHub。
 
 ## 现在怎么操作
 
@@ -27,12 +30,16 @@ idf.py -p COM11 build flash monitor
 ~~~
 
 4. 在开发板主界面点击右上角 **Wi-Fi**。
-5. 点击 SSID 输入框，使用屏幕键盘填写 2.4 GHz Wi-Fi 名称。
-6. 点击 Password 输入框并填写密码，再点击 **Connect**。
+5. 等待附近 2.4 GHz 热点列表出现，点击自己的热点；名称已自动填好，键盘切到密码输入。
+6. 填写 Password，再点击 **Connect**。开放网络可以留空；需要重新搜索时先点 **Networks** 回列表，再点 **Rescan**。
 7. 看到 **Connected and saved** 后，点击 **Back** 返回时钟。网络校时完成后显示北京时间，每秒刷新。
 8. 按板上的 RESET 重启，检查是否自动连接刚才保存的网络。
 
-键盘上的确认键在填写 SSID 时切到密码框，在密码框时提交连接。Back 返回主界面；已经提交的连接请求仍在后台继续。再次打开配网页会显示当前目标网络名称，密码框保持空白；重新点击 Connect 需要重新输入该网络密码。
+键盘上的确认键在填写 SSID 时切到密码框，在密码框时提交连接。Back 返回主界面；已经提交的连接请求仍在后台继续。再次打开配网页会先自动搜索，点选热点后密码框保持空白；重新点击 Connect 需要重新输入该网络密码。
+
+隐藏热点不会出现在普通扫描列表中，请点 **Manual name** 手动填写。列表显示信号 dBm，越接近 0 通常信号越强，例如 -40 dBm 比 -80 dBm 强。相同名称与相同安全类型的多个接入点只保留较强的一项；开放和加密的同名热点会分开显示。标有 Unsupported security 的热点不可点选。
+
+如果开发板正在连接已保存的网络，页面先显示等待，当前尝试成功或进入重试间隔后再扫描。扫描一般需要几秒，具体取决于附近无线环境；等待过程中仍可 Back 返回。扫描列表和输入页分开显示，避免列表挤占 800×480 屏幕上的密码键盘。
 
 ## 保存和失败处理
 
@@ -74,6 +81,7 @@ NVS 使用默认 nvs 分区，命名空间为 s31_wifi，键名为 station，保
 | 4. 自动更新 | 只有点击时改变界面 | 新增 LVGL 定时器，最初显示 lv_tick_get() / 1000 得到的运行秒数 | 定时回调与时间单位 |
 | 5. 联网时钟 | 显示的是运行时长 | 加入 Wi-Fi、SNTP 和时区设置；on_timer() 改用系统时间 | 设备运行时长和真实日期时间的区别 |
 | 6. 屏幕配网 | 名称、密码写进头文件，换网需要重新编译 | 新增输入框、屏幕键盘和网络任务；连接成功后保存 NVS | 运行时配置、任务通信和持久存储 |
+| 7. 扫描选网与清理 | 每次都要手动输入名称，目录保留了停用模板 | 后台扫描、列表点选、信号排序和常用中文名称显示；删除停用文件与无调用接口 | 扫描结果整理、界面切换、后台操作和保持工程清晰 |
 
 ### 工程文件一览：除了 C 代码，还改了什么
 
@@ -93,9 +101,10 @@ s31_display/
 │  ├─ wifi_setup.c / .h           屏幕配网页
 │  ├─ wifi_clock.c / .h           网络后台任务、校时和保存
 │  ├─ wifi_credentials.c / .h     输入校验和配置数据结构
-│  ├─ wifi_config.h               上一版的私有头文件，已停用
-│  └─ wifi_config.example.h       上一版的示例头文件，已停用
-├─ tests/wifi_credentials_test.c  本机输入校验测试
+│  └─ wifi_networks.c / .h        扫描结果数据结构、去重和信号排序
+├─ tests/
+│  ├─ wifi_credentials_test.c     本机输入校验测试
+│  └─ wifi_networks_test.c        本机扫描结果整理测试
 ├─ README.md                      工程入口说明
 └─ WIFI_CLOCK.md                  本文件：改动与学习笔记
 ~~~
@@ -110,9 +119,11 @@ s31_display/
 | sdkconfig.defaults | 固定 S31，启用 PSRAM、200 MHz PSRAM 时钟、双帧缓冲、防撕裂、1000 Hz FreeRTOS tick 和所需字体 | 屏幕帧缓冲需要外部内存，字体与显示功能需要在配置中启用 |
 | .vscode/settings.json | 选择本机 master 环境、COM11、UART 下载和 S31 调试配置 | 减少每次打开工程时的重复选择 |
 | .gitignore | 忽略 build、managed_components、生成的 sdkconfig 和旧 wifi_config.h | 将手写源码与本机缓存、旧私有文件区分开 |
-| main/CMakeLists.txt | 编译 main.c、wifi_clock.c、wifi_setup.c、wifi_credentials.c，并声明 Wi-Fi、事件、网络、定时器、NVS 依赖 | 只创建 .c 文件还不够，必须告诉构建系统把它编译进去 |
+| main/CMakeLists.txt | 编译 main.c、wifi_clock.c、wifi_setup.c、wifi_credentials.c、wifi_networks.c，并声明 Wi-Fi、事件、网络、定时器、NVS 依赖 | 只创建 .c 文件还不够，必须告诉构建系统把它编译进去 |
 
 sdkconfig 是本机生成的实际配置，sdkconfig.defaults 是新建配置时使用的模板。已有 sdkconfig 时，改 defaults 通常不会覆盖已有选项；日常可通过 idf.py menuconfig 修改实际配置。
+
+本次同时在本机 sdkconfig 和 sdkconfig.defaults 中启用 CONFIG_LV_FONT_SOURCE_HAN_SANS_SC_16_CJK。热点名称使用一份 Montserrat 24 字体结构体副本，并把 fallback 指向 lv_font_source_han_sans_sc_16_cjk；英文沿用原字体，缺少的常用汉字由备用字体绘制。不修改 LVGL 库的只读字体对象，也没有增加中文输入法。
 
 ### 分区表为什么从默认应用分区改为 3 MB
 
@@ -236,12 +247,15 @@ app_main() 和 LVGL 是不同任务。启动时创建对象，需要用 BSP 的�
 
 | 函数 | 做了什么 | 需要关注的地方 |
 | --- | --- | --- |
-| wifi_setup_open() | 在当前屏幕上创建全屏设置层、输入框、按钮和键盘 | 若设置层已打开，重复点击不会再创建第二份 |
+| wifi_setup_open() | 创建列表页和输入页，默认显示列表并提交扫描 | 若设置层已打开，重复点击不会再创建第二份 |
+| scan_clicked() / refresh_networks() | 提交扫描、读取结果快照、按修订号更新列表 | 每秒读取一次，但只有结果或扫描状态变化时才重建列表 |
+| network_clicked() / show_form() | 将点选热点名称填入 SSID，并切到密码框 | 先复制选中记录，避免刷新快照使事件数据变化；切换热点时清空密码 |
+| show_networks() / manual_clicked() | 返回热点列表，或打开手动输入 | 返回列表时解绑键盘并清空密码；手动入口用于隐藏热点 |
 | make_button() | 创建按钮及其居中的文字 | 把重复的创建过程放进函数 |
 | on_input() | 让屏幕键盘切换到当前点击或获得焦点的输入框 | 同一个键盘可以为不同输入框输入文字 |
 | connect_clicked() | 读取输入、校验、提交连接请求 | 只提交请求，不等到连接完成才返回 |
 | keyboard_event() | 处理键盘确认和退出事件 | SSID 确认后转向密码，密码确认后提交 |
-| wifi_setup_refresh() | 读取网络状态并更新提示 | 在 LVGL 任务中刷新，不由后台任务直接改标签 |
+| wifi_setup_refresh() | 读取扫描和连接状态并更新提示 | 输入错误只保留在输入页，不阻止扫描列表更新；后台任务不直接改标签 |
 | close_setup() | 解绑键盘、清空密码输入框并延后删除设置层 | 清掉全局对象指针，避免定时器继续访问已删除对象 |
 
 重要的 LVGL 用法：
@@ -259,6 +273,55 @@ lv_keyboard_set_textarea(s_keyboard, s_ssid);
 s_local_error 的作用是保留本地输入错误提示。否则定时器每秒刷新一次，就会立即把“密码太短”等提示覆盖掉。用户继续编辑或重新提交后，才恢复正常状态显示。
 
 close_setup() 使用 lv_obj_delete_async() 延后删除整个设置层，因为关闭动作本身也是这个界面的一次事件回调。删除前先将键盘与输入框解绑，再把保存的界面对象指针设为 NULL。
+
+## 新增扫描：从打开页面到点选名称
+
+~~~mermaid
+flowchart TD
+    A[打开 Wi-Fi 或点击 Rescan] --> B[wifi_clock_scan 提交 COMMAND_SCAN]
+    B --> C[wifi_worker 标记 scan_pending]
+    C --> D[scan_if_ready 等待当前连接尝试空闲]
+    D --> E[启动 STA 并扫描附近热点]
+    E --> F[取回 AP 记录并整理结果]
+    F --> G[释放驱动列表和临时数组]
+    G --> H[发布不含密码的扫描快照]
+    H --> I[LVGL 定时器按 revision 更新列表]
+    I --> J[点选热点并复制 SSID]
+    J --> K[切到密码页 点击 Connect]
+~~~
+
+这里保留原来的连接状态机，增加了一份独立的 wifi_scan_info_t。扫描状态有 IDLE、WAITING、RUNNING、DONE、FAILED；连接是否已保存，仍由 wifi_clock_info_t 表达。扫描本身不会写 NVS，也不会修改已保存的名称和密码。
+
+### 为什么网络任务等待扫描，屏幕仍能操作
+
+~~~c
+esp_wifi_scan_start(NULL, true);
+~~~
+
+第二个参数 true 表示等待扫描完成。调用位置是 wifi_worker()，不是 LVGL 的点击回调；所以等待期间屏幕和 ESP-IDF 事件循环仍在各自任务中执行。网络事件会先进入原来的消息队列，扫描返回后再处理。此处使用完成后的取回流程，没有新增 SCAN_DONE 界面回调。
+
+Wi-Fi 驱动在正在连接时可能拒绝主动扫描，因此 scan_if_ready() 会等当前连接尝试成功或进入重试间隔，再开始搜索。已有连接时可以搜索，失败重连时则优先在下一次重试前完成待处理扫描。反复按 Rescan 不会堆积扫描：atomic_bool s_scan_requested 只允许一份排队或正在执行的请求。
+
+结果处理先调用 esp_wifi_scan_get_ap_num()，最多为 64 条记录分配临时堆内存，再调用 esp_wifi_scan_get_ap_records() 取回按 RSSI 排列的记录。驱动为扫描分配了内存，必须取回或清理；代码在成功、空结果和失败路径都执行清理，并 free() 自己的临时数组。大数组没有放进网络任务的栈。
+
+最终快照用原来的临界区保护，界面拿到完整副本。revision 只在扫描状态或结果变化时递增；refresh_networks() 发现修订号没有变化就直接返回，避免每秒重建按钮导致滚动位置跳动。
+
+### wifi_networks.c：去重与信号排序
+
+wifi_network_t 保存原始 SSID、RSSI、是否需要密码和当前连接代码是否支持该安全类型，不保存密码或路由器 BSSID。wifi_networks_add() 不依赖 ESP-IDF 或 LVGL，所以可以用本机 GCC 验证：
+
+1. 忽略没有名称或没有字符串结束符的记录。
+2. 同一名称、相同密码需求和相同支持状态只保留一项；后来的信号更强时替换。
+3. 插入或替换后向前移动，保持 RSSI 从强到弱排列。
+4. 最多保留 WIFI_NETWORK_LIMIT，即 20 项；列表已满时丢弃更弱的新记录。
+
+SSID 按字节原样复制，32 字节名称和中文 UTF-8 名称不会因为显示而被修改。列表只在显示时把换行等控制字符替换为问号，连接仍使用原始名称。开放网络和需要密码的同名网络分开显示，避免把两类网络混为一个选项。
+
+### 字体与文件清理
+
+使用 LVGL 9.3 自带的 SourceHanSansSC 16 CJK 作为备用字体，覆盖常用汉字；未覆盖字符仍可能显示方框。本机已启用实际配置，同时在 sdkconfig.defaults 启用，保证首次克隆构建也有此字体。已有配置通过 menuconfig 开启，具体入口见 README。
+
+停用的 Wi-Fi 配置头文件和未被加载的 VS Code 示例模板已经删除；当前源码都在 main/CMakeLists.txt 中注册，两个 tests 文件都有 README 中可直接运行的测试命令。构建目录与 managed_components 是实际使用的生成文件和依赖，不属于停用源码，继续由构建工具管理且不提交仓库。
 
 ## wifi_credentials.c：输入校验与 C 字符串
 
@@ -314,7 +377,8 @@ flowchart TD
 | wifi_clock_start() | app_main() 调用一次 | 完成初始化并创建网络后台任务，不等待连接完成 |
 | wifi_clock_connect(ssid, password) | 配网页的 Connect 回调 | 校验并复制输入，向队列提交请求；ESP_OK 只代表提交成功 |
 | wifi_clock_get_info(&info) | 主界面和配网页 | 获取连接状态、是否保存、SSID、错误码；不返回密码 |
-| wifi_clock_is_connected() | 可供其他模块使用 | 读取是否已经获取 IP 的状态，当前保留为便捷接口 |
+| wifi_clock_scan() | 打开配网页和 Rescan 回调 | 去重正在排队/执行的扫描请求，提交 COMMAND_SCAN，不在界面任务等待扫描 |
+| wifi_clock_get_scan(&scan) | 配网页刷新回调 | 复制扫描状态、修订号、结果数量、名称/信号/安全类型；没有密码 |
 
 “请求提交成功”“Wi-Fi 连接成功”“保存成功”“网络校时成功”是不同阶段，界面应按真实阶段显示状态。
 
@@ -351,7 +415,7 @@ on_wifi_event() 将 ESP-IDF 网络事件转成内部消息：
 | WIFI_EVENT_STA_DISCONNECTED | DRIVER_DISCONNECTED | 决定重试或提示失败 |
 | IP_EVENT_STA_GOT_IP | DRIVER_GOT_IP | 验证当前目标、保存配置、启动校时 |
 
-主界面提交的 COMMAND_CONNECT 和这些驱动事件都在 wifi_worker() 中串行处理，避免多个任务同时修改连接过程。
+界面提交的 COMMAND_CONNECT、COMMAND_SCAN 和这些驱动事件都在 wifi_worker() 中串行处理，避免多个任务同时修改驱动过程。STA_START 如果只为了扫描而启动驱动，不会自动发起连接，只有 attempt_active 为真才连接。
 
 ### 关键函数各负责什么
 
@@ -365,6 +429,8 @@ on_wifi_event() 将 ESP-IDF 网络事件转成内部消息：
 | read_saved_network() | 读取并检查已保存记录的版本、长度和字符串格式 |
 | save_network() | 写入一个包含名称和密码的记录，并提交 NVS |
 | set_info() | 更新不含密码的连接状态快照 |
+| scan_if_ready() | 在当前连接尝试结束后的空闲时段执行扫描，取回结果并释放驱动列表 |
+| supported_auth() | 只允许开放和支持的 WPA2/WPA3 个人网络从列表点选；旧 WEP、企业认证等显示不支持 |
 
 switching 标志用于处理换网时的中间阶段。停止旧 Wi-Fi 后，不能立刻把旧断线事件当成新网络失败，也不能把旧 IP 事件当成新网络连接成功。因此等待 DRIVER_STOPPED 后才应用新配置，收到 IP 时再检查实际连接的 SSID。
 
@@ -378,6 +444,7 @@ switching 标志用于处理换网时的中间阶段。停止旧 Wi-Fi 后，不
 | auto_reconnect | 配置来自已保存记录，或本次已经成功连接，可以持续重连 |
 | save_pending | 新配置尚未成功保存 |
 | attempt_active | 当前尝试是否仍应处理结果 |
+| scan_pending | 有一次扫描请求等待连接空闲时执行 |
 | retries | 新网络已经进行的重试次数 |
 | deadline_us | 当前尝试的截止时间，单位微秒 |
 | retry_at_us | 下次发起重连的时间，单位微秒 |
@@ -445,7 +512,7 @@ nvs_close(...)
 | time(NULL) | 秒 | 读取系统日期时间 |
 | esp_timer_get_time() | 微秒 | 计算 30 秒连接超时和约 5 秒重试间隔 |
 
-wifi_worker() 每次等待队列最多约 200 毫秒，随后检查截止时间。它没有在界面事件里睡眠 30 秒，用户仍可操作屏幕。
+wifi_worker() 平时每次等待队列最多约 200 毫秒，随后检查截止时间。执行扫描时，该网络任务会等待驱动返回几秒，网络事件暂存在队列中；LVGL 和 ESP-IDF 事件任务仍独立运行，界面回调本身不等待扫描或连接。
 
 ## 二次学习建议：每次只做一个小实验
 
@@ -464,13 +531,14 @@ wifi_worker() 每次等待队列最多约 200 毫秒，随后检查截止时间�
 
 ## 已验证与待实机确认
 
-- 已在本电脑的 ESP-IDF master（v6.2.0）上编译通过并生成固件。
+- 当前扫描选网版已在本电脑的 ESP-IDF master（v6.2.0）上编译通过并生成固件；加入备用字体后固件大小为 0x18f9f0 字节，仍能放入 3 MB 应用分区。
 - 本机 GCC 输入边界测试通过：空值、32/33 字节 SSID、UTF-8 超长、开放网络、7/8/63 字节密码、64 位十六进制 PSK、65 字节密码等。
-- 尚未替用户烧录，也未使用真实 Wi-Fi 密码验证设备联网；实机仍需按上面的步骤测试触摸键盘、成功保存、重启恢复及错误密码处理。
+- 本机 GCC 扫描结果测试通过：重复热点保留较强项、开放与加密同名分开、中文和 32 字节名称原样保留、空/未结束名称被忽略、20 项上限及满列表替换后排序。
+- 尚未替用户烧录，也未使用真实 Wi-Fi 密码验证设备联网；实机仍需测试自动扫描、Rescan、列表滚动、点选名称、中文显示、触摸键盘、成功保存、重启恢复及错误密码处理。
 
 ## 当前范围
 
-配网页需要手动输入名称，尚未加入自动扫描热点列表。屏幕键盘提供英文字母、数字和符号，尚未加入中文输入法及完整中文字库。当前支持常见 WPA2/WPA3 个人网络和开放网络，不包含企业网络或需网页认证的热点。
+配网页已支持自动扫描和点选名称；最多读取信号最强的 64 条 AP 记录，整理后显示最多 20 项。隐藏热点可手动输入。屏幕键盘提供英文字母、数字和符号，常用中文名称可通过备用字体显示，但未加入中文输入法或完整 Unicode 字库。当前支持常见 WPA2/WPA3 个人网络和开放网络，不包含企业网络或需网页认证的热点。
 
 ## GitHub 同步改了什么
 
@@ -478,7 +546,7 @@ wifi_worker() 每次等待队列最多约 200 毫秒，随后检查截止时间�
 
 - `.gitignore`：增加忽略本机 `.vscode/settings.json`、固件和测试可执行文件。原有 `build`、`managed_components`、生成的 `sdkconfig`、旧私有 `main/wifi_config.h` 继续排除。
 - `.gitattributes`：源码和文档在 Git 中统一采用 LF 换行，方便跨 Windows/Linux 复现。
-- `.vscode/settings.example.json`：新增不含本机安装路径和串口号的配置参考。本机实际设置仍保留在电脑上。
+- `.vscode/settings.json`：本机实际设置保留且不上传；原先提供的 settings.example.json 模板在本次清理中删除，新电脑直接由 ESP-IDF 扩展管理设置。
 - `README.md`：补充仓库链接、克隆命令、在新电脑打开工程的方法和无需开发板即可运行的输入校验测试命令；说明克隆目录默认叫 `ESP-S31`，本机目录仍叫 `s31_display`。
 - 上传范围为源码、配置模板、分区表、依赖锁文件、测试和学习文档；不上传构建缓存、固件或旧密码文件。
 
@@ -489,5 +557,6 @@ wifi_worker() 每次等待队列最多约 200 毫秒，随后检查截止时间�
 ## 官方资料
 
 - [S31 Wi-Fi API](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s31/api-reference/network/esp_wifi.html)
+- [S31 扫描与连接场景](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s31/api-guides/wifi-driver/station-scenarios.html)
 - [S31 NVS 持久存储](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s31/api-reference/storage/nvs_flash.html)
 - [系统时间与 SNTP 校时](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s31/api-reference/system/system_time.html)
