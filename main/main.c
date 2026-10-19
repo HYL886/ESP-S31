@@ -7,6 +7,7 @@
 #include "lvgl.h"
 #include "wifi_clock.h"
 #include "wifi_setup.h"
+#include "ui_fonts.h"
 
 static const char *TAG = "s31_display";
 static lv_obj_t *count_label;
@@ -17,7 +18,7 @@ static void on_button_clicked(lv_event_t *event)
 {
     (void)event;
     tap_count +=10;
-    lv_label_set_text_fmt(count_label, "Count: %" PRIu32, tap_count);
+    lv_label_set_text_fmt(count_label, "计数：%" PRIu32, tap_count);
     ESP_LOGI(TAG, "Touch works! Count: %" PRIu32, tap_count);
 }
 
@@ -25,7 +26,7 @@ static void on_reset_clicked(lv_event_t *event)
 {
     (void)event;
     tap_count = 0;
-    lv_label_set_text(count_label, "Count: 0");
+    lv_label_set_text(count_label, "计数：0");
 }
 
 static void on_timer(lv_timer_t *timer)
@@ -40,13 +41,13 @@ static void on_timer(lv_timer_t *timer)
     if (current_time.tm_year < (2024 - 1900)) {
         wifi_clock_info_t info;
         wifi_clock_get_info(&info);
-        const char *message = "Connecting Wi-Fi...";
+        const char *message = "正在连接 Wi-Fi…";
         if (info.connected) {
-            message = "Wi-Fi connected; syncing time...";
+            message = "Wi-Fi 已连接，正在校时…";
         } else if (info.state == WIFI_CLOCK_SETUP_REQUIRED) {
-            message = "Tap Wi-Fi to set up a network";
+            message = "点击“网络”设置 Wi-Fi";
         } else if (info.state == WIFI_CLOCK_CONNECT_FAILED) {
-            message = "Connection failed; tap Wi-Fi to retry";
+            message = "连接失败，请重新设置网络";
         }
         lv_label_set_text(label, message);
         return;
@@ -62,6 +63,7 @@ static void create_screen(void)
     lv_obj_t *screen = lv_screen_active();
     lv_obj_set_style_bg_color(screen, lv_color_hex(0x142030), 0);
     lv_obj_set_style_text_color(screen, lv_color_white(), 0);
+    lv_obj_set_style_text_font(screen, ui_font_normal(), 0);
     lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = lv_label_create(screen);
@@ -70,15 +72,15 @@ static void create_screen(void)
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 55);
 
     lv_obj_t *subtitle = lv_label_create(screen);
-    lv_label_set_text(subtitle, "Waiting for network time...");
-    lv_obj_set_style_text_font(subtitle, &lv_font_montserrat_24, 0);
+    lv_label_set_text(subtitle, "等待网络校时…");
+    lv_obj_set_style_text_font(subtitle, ui_font_normal(), 0);
     lv_obj_set_style_text_color(subtitle, lv_color_hex(0xA8BED2), 0);
     lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 128);
     lv_timer_create(on_timer, 1000, subtitle);
 
     count_label = lv_label_create(screen);
-    lv_label_set_text(count_label, "Count: 0");
-    lv_obj_set_style_text_font(count_label, &lv_font_montserrat_32, 0);
+    lv_label_set_text(count_label, "计数：0");
+    lv_obj_set_style_text_font(count_label, ui_font_large(), 0);
     lv_obj_set_width(count_label, 700);
     lv_obj_set_style_text_align(count_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(count_label, LV_ALIGN_TOP_MID, 0, 214);
@@ -91,8 +93,8 @@ static void create_screen(void)
     lv_obj_add_event_cb(button, on_button_clicked, LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *button_label = lv_label_create(button);
-    lv_label_set_text(button_label, "Tap me +10");
-    lv_obj_set_style_text_font(button_label, &lv_font_montserrat_32, 0);
+    lv_label_set_text(button_label, "加 10");
+    lv_obj_set_style_text_font(button_label, ui_font_large(), 0);
     lv_obj_center(button_label);
 
     lv_obj_t *reset_button = lv_button_create(screen);
@@ -102,14 +104,14 @@ static void create_screen(void)
                         LV_EVENT_CLICKED, NULL);
 
     lv_obj_t *reset_label = lv_label_create(reset_button);
-    lv_label_set_text(reset_label, "Reset");
+    lv_label_set_text(reset_label, "清零");
     lv_obj_set_style_text_font(reset_label,
-                            &lv_font_montserrat_32, 0);
+                            ui_font_large(), 0);
     lv_obj_center(reset_label);
 
     lv_obj_t *footer = lv_label_create(screen);
-    lv_label_set_text(footer, "Tap Wi-Fi to connect or change network");
-    lv_obj_set_style_text_font(footer, &lv_font_montserrat_24, 0);
+    lv_label_set_text(footer, "点击右上角“网络”连接或切换 Wi-Fi");
+    lv_obj_set_style_text_font(footer, ui_font_normal(), 0);
     lv_obj_set_style_text_color(footer, lv_color_hex(0xA8BED2), 0);
     lv_obj_align(footer, LV_ALIGN_BOTTOM_MID, 0, -30);
 
@@ -118,8 +120,8 @@ static void create_screen(void)
     lv_obj_align(wifi_button, LV_ALIGN_TOP_RIGHT, -18, 14);
     lv_obj_add_event_cb(wifi_button, wifi_setup_open, LV_EVENT_CLICKED, NULL);
     lv_obj_t *wifi_label = lv_label_create(wifi_button);
-    lv_label_set_text(wifi_label, "Wi-Fi");
-    lv_obj_set_style_text_font(wifi_label, &lv_font_montserrat_24, 0);
+    lv_label_set_text(wifi_label, "网络");
+    lv_obj_set_style_text_font(wifi_label, ui_font_normal(), 0);
     lv_obj_center(wifi_label);
 }
 
@@ -135,6 +137,7 @@ void app_main(void)
         ESP_LOGE(TAG, "Could not lock the display");
         return;
     }
+    ui_fonts_init();
     create_screen();
     bsp_display_unlock();
 

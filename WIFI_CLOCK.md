@@ -1,12 +1,12 @@
-# Wi-Fi 网络时钟：扫描选网版
+# Wi-Fi 网络时钟：中文界面与扫描选网版
 
 ## 本次改了什么
 
-最初把 Wi-Fi 名称和密码写在头文件中，换网络需要重新编译；随后改为屏幕输入。当前版本再增加自动扫描：打开配网页就搜索附近热点，点选名称后输入密码，连接成功后保存，重启自动连接。
+最初把 Wi-Fi 名称和密码写在头文件中，换网络需要重新编译；随后改为屏幕输入和自动扫描。当前版本加入正式中文点阵字库：主界面按钮、配网页、连接状态和输入错误提示改用中文；打开配网页搜索附近热点，点选名称后输入密码，连接成功后保存，重启自动连接。
 
 | 文件 | 具体改动 |
 | --- | --- |
-| main/main.c | 主界面右上角增加 Wi-Fi 按钮；计时回调刷新配网页状态，并提示首次配网或连接失败。保留已修改的标题、加 10 和 Reset 按钮。 |
+| main/main.c | 主界面右上角为“网络”按钮；计时回调刷新配网页状态，并提示首次配网或连接失败。保留已修改的英文标题，加数和清零按钮显示中文。 |
 | main/wifi_setup.c / wifi_setup.h | 配网页拆成热点列表和输入页；自动扫描、Rescan 重扫、点选名称后输入密码，Manual name 供隐藏热点使用。 |
 | main/wifi_clock.c / wifi_clock.h | 删除对 wifi_config.h 的依赖；通过队列接收屏幕输入。独立任务管理停止旧连接、切换网络、重试、校时与 NVS 读写；界面只读取不含密码的状态快照。 |
 | main/wifi_credentials.c / wifi_credentials.h | 新增输入校验：SSID 按 UTF-8 字节计数，不超过 32 字节；密码为 8–63 字节，或 64 位十六进制 PSK；空密码表示开放网络。 |
@@ -14,12 +14,26 @@
 | main/CMakeLists.txt | 加入配网页及校验源文件，并显式声明网络、定时器与 NVS 组件依赖。 |
 | tests/wifi_credentials_test.c | 增加名称长度、UTF-8 字节数、空密码、短密码、64 位 PSK 等边界测试。 |
 | tests/wifi_networks_test.c | 验证重复热点、不同安全类型、强弱信号、中文/32 字节 SSID、空名称及结果容量边界。 |
-| sdkconfig.defaults | 增加 SourceHanSansSC 16 CJK 字体，作为热点名称和 SSID 输入框的常用汉字备用字体。 |
+| main/ui_fonts.c / ui_fonts.h | 统一提供 16、24、32 像素字体；在创建界面前初始化，英文与 LVGL 符号沿用 Montserrat，中文使用本工程点阵字库。 |
+| main/fonts/s31_cn_16.c、s31_cn_24.c、s31_cn_32.c | 实际编译使用的中文点阵数据。24 像素覆盖 GB2312 常用汉字，16/32 像素按界面实际文字生成，减少固件体积。 |
+| main/fonts/OFL-SourceHanSans.txt | 保存字体来源的版权声明和 OFL 1.1 授权；该文件必须随字体保留。 |
+| tools/generate_fonts.py / tests/font_coverage_test.py | 前者重新生成实际使用的字库，后者检查字体映射和点阵边界；普通编译无需运行转换脚本。 |
+| sdkconfig.defaults | 保留实际使用的 Montserrat 字体选项，移除旧的 16 像素 CJK 备用字体，避免重复编入不再使用的字库。 |
 | README.md | 更新为屏幕配网的入口和操作说明。 |
 
 已删除停用的 main/wifi_config.h、main/wifi_config.example.h 和未被扩展读取的 .vscode/settings.example.json，也移除了没有调用者的 wifi_clock_is_connected() 便捷接口。现在不需要创建或填写任何 Wi-Fi 头文件；请直接在开发板上选网配网。本机正在使用的 .vscode/settings.json 保留，且不上传 GitHub。
 
 ## 现在怎么操作
+
+当前按钮已显示为中文。下面保留的英文名称用于对应早期课程和事件函数，屏幕上的对应关系如下：
+
+| 当前屏幕 | 早期名称 | 作用 |
+| --- | --- | --- |
+| 网络 | Wi-Fi | 打开配网页 |
+| 加 10 / 清零 | Tap me +10 / Reset | 增加计数或清零 |
+| 连接 / 返回 | Connect / Back | 提交连接或返回主界面 |
+| 热点列表 / 重新搜索 | Networks / Rescan | 返回列表或刷新附近热点 |
+| 手动输入 | Manual name | 配置隐藏热点 |
 
 1. 在 VS Code 打开原来的 s31_display 工程，选择已有的 ESP-IDF master 环境。
 2. 在旧串口监视器按 Ctrl + ] 退出，释放 COM11。
@@ -29,15 +43,15 @@
 idf.py -p COM11 build flash monitor
 ~~~
 
-4. 在开发板主界面点击右上角 **Wi-Fi**。
+4. 在开发板主界面点击右上角 **网络**。
 5. 等待附近 2.4 GHz 热点列表出现，点击自己的热点；名称已自动填好，键盘切到密码输入。
-6. 填写 Password，再点击 **Connect**。开放网络可以留空；需要重新搜索时先点 **Networks** 回列表，再点 **Rescan**。
-7. 看到 **Connected and saved** 后，点击 **Back** 返回时钟。网络校时完成后显示北京时间，每秒刷新。
+6. 填写“密码”，再点击 **连接**。开放网络可以留空；需要重新搜索时先点 **热点列表** 回列表，再点 **重新搜索**。
+7. 看到 **已连接并保存** 后，点击 **返回** 回到时钟。网络校时完成后显示北京时间，每秒刷新。
 8. 按板上的 RESET 重启，检查是否自动连接刚才保存的网络。
 
 键盘上的确认键在填写 SSID 时切到密码框，在密码框时提交连接。Back 返回主界面；已经提交的连接请求仍在后台继续。再次打开配网页会先自动搜索，点选热点后密码框保持空白；重新点击 Connect 需要重新输入该网络密码。
 
-隐藏热点不会出现在普通扫描列表中，请点 **Manual name** 手动填写。列表显示信号 dBm，越接近 0 通常信号越强，例如 -40 dBm 比 -80 dBm 强。相同名称与相同安全类型的多个接入点只保留较强的一项；开放和加密的同名热点会分开显示。标有 Unsupported security 的热点不可点选。
+隐藏热点不会出现在普通扫描列表中，请点 **手动输入** 填写。列表显示信号 dBm，越接近 0 通常信号越强，例如 -40 dBm 比 -80 dBm 强。相同名称与相同安全类型的多个接入点只保留较强的一项；开放和加密的同名热点会分开显示。标有“不支持的认证”的热点不可点选。
 
 如果开发板正在连接已保存的网络，页面先显示等待，当前尝试成功或进入重试间隔后再扫描。扫描一般需要几秒，具体取决于附近无线环境；等待过程中仍可 Back 返回。扫描列表和输入页分开显示，避免列表挤占 800×480 屏幕上的密码键盘。
 
@@ -82,6 +96,7 @@ NVS 使用默认 nvs 分区，命名空间为 s31_wifi，键名为 station，保
 | 5. 联网时钟 | 显示的是运行时长 | 加入 Wi-Fi、SNTP 和时区设置；on_timer() 改用系统时间 | 设备运行时长和真实日期时间的区别 |
 | 6. 屏幕配网 | 名称、密码写进头文件，换网需要重新编译 | 新增输入框、屏幕键盘和网络任务；连接成功后保存 NVS | 运行时配置、任务通信和持久存储 |
 | 7. 扫描选网与清理 | 每次都要手动输入名称，目录保留了停用模板 | 后台扫描、列表点选、信号排序和常用中文名称显示；删除停用文件与无调用接口 | 扫描结果整理、界面切换、后台操作和保持工程清晰 |
+| 8. 中文字体与界面 | 只有热点名称有小字号中文备用字体，其他提示还是英文 | 新增实际编译的 16/24/32 像素点阵字库、统一字体接口和中文提示，保留自定义英文标题 | UTF-8 文本、字形覆盖、字体回退与 Flash 空间 |
 
 ### 工程文件一览：除了 C 代码，还改了什么
 
@@ -101,10 +116,14 @@ s31_display/
 │  ├─ wifi_setup.c / .h           屏幕配网页
 │  ├─ wifi_clock.c / .h           网络后台任务、校时和保存
 │  ├─ wifi_credentials.c / .h     输入校验和配置数据结构
-│  └─ wifi_networks.c / .h        扫描结果数据结构、去重和信号排序
+│  ├─ wifi_networks.c / .h        扫描结果数据结构、去重和信号排序
+│  ├─ ui_fonts.c / .h            统一字体初始化和字号接口
+│  └─ fonts/                    实际使用的点阵 C 文件和字体授权
 ├─ tests/
 │  ├─ wifi_credentials_test.c     本机输入校验测试
-│  └─ wifi_networks_test.c        本机扫描结果整理测试
+│  ├─ wifi_networks_test.c        本机扫描结果整理测试
+│  └─ font_coverage_test.py       本机字形覆盖和点阵边界检查
+├─ tools/generate_fonts.py        修改文字后可重新生成字库
 ├─ README.md                      工程入口说明
 └─ WIFI_CLOCK.md                  本文件：改动与学习笔记
 ~~~
@@ -119,11 +138,11 @@ s31_display/
 | sdkconfig.defaults | 固定 S31，启用 PSRAM、200 MHz PSRAM 时钟、双帧缓冲、防撕裂、1000 Hz FreeRTOS tick 和所需字体 | 屏幕帧缓冲需要外部内存，字体与显示功能需要在配置中启用 |
 | .vscode/settings.json | 选择本机 master 环境、COM11、UART 下载和 S31 调试配置 | 减少每次打开工程时的重复选择 |
 | .gitignore | 忽略 build、managed_components、生成的 sdkconfig 和旧 wifi_config.h | 将手写源码与本机缓存、旧私有文件区分开 |
-| main/CMakeLists.txt | 编译 main.c、wifi_clock.c、wifi_setup.c、wifi_credentials.c、wifi_networks.c，并声明 Wi-Fi、事件、网络、定时器、NVS 依赖 | 只创建 .c 文件还不够，必须告诉构建系统把它编译进去 |
+| main/CMakeLists.txt | 注册界面、网络、输入校验、扫描结果整理、ui_fonts.c 和三个字体 C 文件，并声明组件依赖 | 只创建 .c 文件还不够，必须告诉构建系统把它编译进去 |
 
 sdkconfig 是本机生成的实际配置，sdkconfig.defaults 是新建配置时使用的模板。已有 sdkconfig 时，改 defaults 通常不会覆盖已有选项；日常可通过 idf.py menuconfig 修改实际配置。
 
-本次同时在本机 sdkconfig 和 sdkconfig.defaults 中启用 CONFIG_LV_FONT_SOURCE_HAN_SANS_SC_16_CJK。热点名称使用一份 Montserrat 24 字体结构体副本，并把 fallback 指向 lv_font_source_han_sans_sc_16_cjk；英文沿用原字体，缺少的常用汉字由备用字体绘制。不修改 LVGL 库的只读字体对象，也没有增加中文输入法。
+当前版本移除旧 CONFIG_LV_FONT_SOURCE_HAN_SANS_SC_16_CJK 选项，并关闭本机对应实际配置。中文字体作为 main/fonts 下的 C 文件直接编译，无需在 menuconfig 再选择旧 CJK 字体；24/32 像素 Montserrat 字体副本的 fallback 分别指向本工程同字号中文点阵，字体结构体统一由 ui_fonts.c 管理。
 
 ### 分区表为什么从默认应用分区改为 3 MB
 
@@ -181,17 +200,17 @@ app_main() 返回后屏幕仍然运行，因为 LVGL 和网络逻辑都由各自
 
 ~~~c
 tap_count += 10;  // 先改变数据
-lv_label_set_text_fmt(count_label, "Count: %" PRIu32, tap_count);
+lv_label_set_text_fmt(count_label, "计数：%" PRIu32, tap_count);
 ~~~
 
 清零回调同样要改变数据并刷新界面：
 
 ~~~c
 tap_count = 0;
-lv_label_set_text(count_label, "Count: 0");
+lv_label_set_text(count_label, "计数：0");
 ~~~
 
-如果只把标签改成 Count: 0，而不把 tap_count 置零，下次加数会继续使用旧变量值。
+如果只把标签改成“计数：0”，而不把 tap_count 置零，下次加数会继续使用旧变量值。
 
 绑定事件这句：
 
@@ -319,7 +338,7 @@ SSID 按字节原样复制，32 字节名称和中文 UTF-8 名称不会因为�
 
 ### 字体与文件清理
 
-使用 LVGL 9.3 自带的 SourceHanSansSC 16 CJK 作为备用字体，覆盖常用汉字；未覆盖字符仍可能显示方框。本机已启用实际配置，同时在 sdkconfig.defaults 启用，保证首次克隆构建也有此字体。已有配置通过 menuconfig 开启，具体入口见 README。
+当前使用从思源黑体转换的本工程点阵字库，英文与常用符号沿用 Montserrat。旧 16 像素 CJK 字库已不再编入固件；三个新字体 C 文件都被 ui_fonts.c 引用并参与构建，字体授权随文件保留。具体覆盖范围和转换步骤见后面的“中文字体怎样加入”。
 
 停用的 Wi-Fi 配置头文件和未被加载的 VS Code 示例模板已经删除；当前源码都在 main/CMakeLists.txt 中注册，两个 tests 文件都有 README 中可直接运行的测试命令。构建目录与 managed_components 是实际使用的生成文件和依赖，不属于停用源码，继续由构建工具管理且不提交仓库。
 
@@ -354,6 +373,46 @@ if (error != NULL) {
 bounded_length() 最多读取指定数量的字符。它的作用是检查上限时不无止境向后寻找结束符。后续只有输入通过校验，才会复制进固定大小的配置数组。
 
 64 字节密码需要单独检查：它必须是十六进制 PSK，不能把任意 64 字节字符串都当作普通口令交给驱动。
+
+## 中文字体怎样加入
+
+### 三个实际使用的字号
+
+| 字体文件 | 覆盖与精度 | 用在什么位置 |
+| --- | --- | --- |
+| s31_cn_16.c | ASCII 和当前全部中文提示/标点，4 bpp | 扫描状态、连接状态、输入错误、热点认证说明 |
+| s31_cn_24.c | GB2312 的 6763 个常用汉字和当前界面补充字符，2 bpp | 热点名称、SSID 输入框、网络按钮、配网页标题和主界面提示 |
+| s31_cn_32.c | 从 main.c 当前文字提取中文字符，4 bpp | 计数、加数和清零按钮；数字仍由 Montserrat 32 绘制 |
+
+bpp 表示一个点阵像素使用多少位来保存灰度。24 像素字库字符多，使用 2 bpp 控制 Flash 占用；两个界面专用小字库使用 4 bpp。三个字库均为未压缩点阵，普通构建直接编译这些 C 文件，不需要下载原始 OTF 或安装转换工具。
+
+fonts 下的 C 文件是自动生成的点阵数据，文本体积大，不等于固件占用相同大小；复习时重点阅读 ui_fonts.c 和 generate_fonts.py，无需逐行阅读点阵数组。
+
+24 像素字库的 6763 个汉字来自 GB2312 汉字区；当前界面额外使用的中文标点也加入了字库。覆盖范围外的字符仍可能显示为方框。字库负责显示，英文字母/数字/符号键盘的输入方式沿用原界面。
+
+### 为什么加了字库还要设置字体
+
+UTF-8 字符串保存的是字符编码，字体提供对应编码的点阵；两者都正确，中文才会显示。只启用一个字体选项，不会自动给所有标签换字体。
+
+app_main() 在显示锁内先调用 ui_fonts_init()，再调用 create_screen()。ui_fonts.c 创建 Montserrat 字体结构体副本，将 24/32 像素字体的 fallback 分别指向同字号中文字体。英文、数字和图标沿用原字体，中文由点阵字库补足；不会修改 LVGL 自带的只读对象。
+
+主界面和配网页通过 ui_font_small()、ui_font_normal()、ui_font_large() 取得字体。配网页原先只给 SSID 设置的小字号备用字体已移除，现在中文标题、按钮、状态提示和热点名称都连接到统一字体接口。用户原先修改的 My first screen 英文标题保留，仍使用原来的 48 像素英文字体。
+
+### 字体来源与重新生成
+
+字库从 Adobe [Source Han Sans（思源黑体）官方仓库](https://github.com/adobe-fonts/source-han-sans)的 SourceHanSansSC-Normal.otf 转换，使用 [LVGL 官方 lv_font_conv](https://github.com/lvgl/lv_font_conv) 1.5.3。原始字体 SHA-256 为 `7e5b7e586262f5e187c3397935b3a0dfbe28e08a916be0f60ec7fee2b50abd6d`。字体授权和版权声明保存在 main/fonts/OFL-SourceHanSans.txt，随字库一并保留。
+
+以后新增中文提示，先改 C 代码，再重新生成 16/32 像素界面字库并运行覆盖检查。安装有 Node.js/npm 的电脑，可把工具放在工程外的临时目录，避免干扰源码目录：
+
+~~~powershell
+npm install --prefix ../s31-font-tools lv_font_conv@1.5.3
+python tools/generate_fonts.py --font "D:/fonts/SourceHanSansSC-Normal.otf" --converter "../s31-font-tools/node_modules/lv_font_conv/lv_font_conv.js"
+python tests/font_coverage_test.py
+~~~
+
+示例中的 OTF 路径替换为实际下载位置。generate_fonts.py 会读取界面字符串、生成 GB2312 汉字集合，按三个字号转换，并移除自动生成头注释中的本机绝对路径。编译列表、字体使用、测试和授权都已列明，没有保留停用的旧字库文件。
+
+font_coverage_test.py 不依赖转换工具或开发板：它直接解析生成 C 文件中的 cmaps、glyph_dsc 和 glyph_bitmap，检查字形是否存在、汉字是否有点阵、点阵索引是否越界，以及 24 像素字库是否保持在默认字形索引上限以内。
 
 ## wifi_clock.c：一次连接请求走过哪些函数
 
@@ -531,14 +590,15 @@ wifi_worker() 平时每次等待队列最多约 200 毫秒，随后检查截止�
 
 ## 已验证与待实机确认
 
-- 当前扫描选网版已在本电脑的 ESP-IDF master（v6.2.0）上编译通过并生成固件；加入备用字体后固件大小为 0x18f9f0 字节，仍能放入 3 MB 应用分区。
+- 当前中文界面版已在本电脑的 ESP-IDF master（v6.2.0）上编译通过并生成固件；固件大小为 0x2523c0 字节，3 MB 应用分区还有约 23% 空间。
 - 本机 GCC 输入边界测试通过：空值、32/33 字节 SSID、UTF-8 超长、开放网络、7/8/63 字节密码、64 位十六进制 PSK、65 字节密码等。
 - 本机 GCC 扫描结果测试通过：重复热点保留较强项、开放与加密同名分开、中文和 32 字节名称原样保留、空/未结束名称被忽略、20 项上限及满列表替换后排序。
+- 字体覆盖检查通过：当前界面的 142 个非 ASCII 字符及 6763 个 GB2312 汉字都有有效字形；检查直接读取生成的 C 字体映射、字形描述和点阵范围。
 - 尚未替用户烧录，也未使用真实 Wi-Fi 密码验证设备联网；实机仍需测试自动扫描、Rescan、列表滚动、点选名称、中文显示、触摸键盘、成功保存、重启恢复及错误密码处理。
 
 ## 当前范围
 
-配网页已支持自动扫描和点选名称；最多读取信号最强的 64 条 AP 记录，整理后显示最多 20 项。隐藏热点可手动输入。屏幕键盘提供英文字母、数字和符号，常用中文名称可通过备用字体显示，但未加入中文输入法或完整 Unicode 字库。当前支持常见 WPA2/WPA3 个人网络和开放网络，不包含企业网络或需网页认证的热点。
+配网页已支持自动扫描和点选名称；最多读取信号最强的 64 条 AP 记录，整理后显示最多 20 项。隐藏热点可手动输入。界面与 GB2312 常用中文名称可以显示，覆盖范围外的字符可能显示方框；屏幕键盘提供英文字母、数字和符号。当前支持常见 WPA2/WPA3 个人网络和开放网络，不包含企业网络或需网页认证的热点。
 
 ## GitHub 同步改了什么
 
