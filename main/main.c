@@ -8,6 +8,7 @@
 #include "wifi_clock.h"
 #include "wifi_setup.h"
 #include "ui_fonts.h"
+#include "camera_preview.h"
 
 static const char *TAG = "s31_display";
 static lv_obj_t *count_label;
@@ -69,7 +70,7 @@ static void create_screen(void)
     lv_obj_t *title = lv_label_create(screen);
     lv_label_set_text(title, "My first screen");
     lv_obj_set_style_text_font(title, &lv_font_montserrat_48, 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 55);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 64);
 
     lv_obj_t *subtitle = lv_label_create(screen);
     lv_label_set_text(subtitle, "等待网络校时…");
@@ -110,7 +111,7 @@ static void create_screen(void)
     lv_obj_center(reset_label);
 
     lv_obj_t *footer = lv_label_create(screen);
-    lv_label_set_text(footer, "点击右上角“网络”连接或切换 Wi-Fi");
+    lv_label_set_text(footer, "右上角可设置网络或打开摄像头");
     lv_obj_set_style_text_font(footer, ui_font_normal(), 0);
     lv_obj_set_style_text_color(footer, lv_color_hex(0xA8BED2), 0);
     lv_obj_align(footer, LV_ALIGN_BOTTOM_MID, 0, -30);
@@ -123,6 +124,15 @@ static void create_screen(void)
     lv_label_set_text(wifi_label, "网络");
     lv_obj_set_style_text_font(wifi_label, ui_font_normal(), 0);
     lv_obj_center(wifi_label);
+
+    lv_obj_t *camera_button = lv_button_create(screen);
+    lv_obj_set_size(camera_button, 136, 44);
+    lv_obj_align(camera_button, LV_ALIGN_TOP_RIGHT, -150, 14);
+    lv_obj_add_event_cb(camera_button, camera_preview_open, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *camera_label = lv_label_create(camera_button);
+    lv_label_set_text(camera_label, "摄像头");
+    lv_obj_set_style_text_font(camera_label, ui_font_normal(), 0);
+    lv_obj_center(camera_label);
 }
 
 void app_main(void)

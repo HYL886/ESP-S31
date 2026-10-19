@@ -180,7 +180,7 @@ dependencies:
       - if: target in [esp32p4, esp32s3, esp32s31]
       version: 2.5.*
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32p4
@@ -273,8 +273,9 @@ dependencies:
     version: 9.3.0
 direct_dependencies:
 - espressif/esp32_s31_korvo_1
+- espressif/esp_video
 - idf
 - lvgl/lvgl
-manifest_hash: 0a1af2bb389dd201cb992a16cf0e47b5d289637d3308da9be4e1daf70dcb3815
+manifest_hash: aab77397681c13a5656d3644713a75743b821aa9c591d49017fd0b668bdcc2ca
 target: esp32s31
 version: 3.0.0

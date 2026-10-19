@@ -59,7 +59,7 @@ def main():
     large = FontAsset(ROOT / "main/fonts/s31_cn_32.c")
     ui_characters = set()
     main_characters = set()
-    for name in ("main.c", "wifi_setup.c", "wifi_credentials.c"):
+    for name in ("main.c", "wifi_setup.c", "wifi_credentials.c", "camera_preview.c"):
         source = (ROOT / "main" / name).read_text(encoding="utf-8")
         for literal in re.findall(r'"(?:\\.|[^"\\])*"', source):
             characters = {c for c in literal if ord(c) >= 128}

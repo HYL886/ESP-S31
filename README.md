@@ -1,6 +1,6 @@
-# ESP-S31：ESP32-S31-Korvo-1 屏幕与联网学习工程
+# ESP-S31：屏幕、联网与摄像头学习工程
 
-这是一个完整的 ESP-IDF 应用工程，使用官方 BSP 1.0.1 和 LVGL 9.3.0。当前包含自定义标题、加 10 按钮、清零按钮、每秒刷新的网络时钟，以及自动扫描并点选热点的屏幕 Wi-Fi 配网页。
+这是一个完整的 ESP-IDF 应用工程，使用官方 BSP 1.0.1 和 LVGL 9.3.0。当前包含自定义标题、加 10 按钮、清零按钮、每秒刷新的网络时钟、扫描选网配网页，以及 OV3660 摄像头实时预览。
 
 开发环境为本电脑的 ESP-IDF master（v6.2.0）。请先阅读 [Wi-Fi 时钟改动与操作说明](WIFI_CLOCK.md)。烧录后点击屏幕右上角 **网络**，等待扫描、点选热点并输入密码；连接成功后保存，重启自动连接。换网络无须重新编译。
 
@@ -29,7 +29,11 @@ code .
 idf.py -p COM11 build flash monitor
 ```
 
-首次构建会自动获取 BSP、LVGL 等依赖。此操作会把板上当前程序替换成新的屏幕与网络时钟程序。
+首次构建会自动获取 BSP、LVGL、esp_video 等依赖。此操作会把板上当前程序替换成新的屏幕、网络时钟与摄像头程序。
+
+使用摄像头前，先断电确认 OV3660 模组和排线接好。烧录后点击主界面右上角 **摄像头**，等待画面；**重试** 重新开始采集，**返回** 停止采集并回到主界面。初始化失败时，应断电检查排线再重启。预览使用 640x480 RGB565 输入，缩小为 480x360 并旋转 180 度显示，设置的传感器模式为 10 FPS，实际刷新速度需实机确认。
+
+从旧版更新时，已有 `sdkconfig` 可能仍关闭 OV3660。请按 [WIFI_CLOCK.md 的摄像头配置说明](WIFI_CLOCK.md#摄像头配置与旧工程升级) 更新实际配置，再编译；新克隆会自动使用 `sdkconfig.defaults`。
 
 ## 预期结果
 
@@ -38,6 +42,7 @@ idf.py -p COM11 build flash monitor
 - 在屏幕上配置 Wi-Fi 并校时后，副标题显示北京时间，每秒刷新。
 - `网络` 页面自动扫描附近 2.4 GHz 热点，按信号强弱排序；点选后只需填写密码。`重新搜索` 刷新列表，`热点列表` 返回列表，`手动输入` 用于隐藏热点。
 - 串口出现 `Network time synchronized.` 表示网络校时成功。
+- 点击 `摄像头` 显示本机实时画面；正常串口日志包含 `Preview started`，退出后包含 `Preview ended`。
 - 按 `Ctrl + ]` 退出串口监视器。
 
 ## 学习入口
@@ -45,6 +50,8 @@ idf.py -p COM11 build flash monitor
 打开 `main/main.c`：`create_screen()` 创建界面，两个按钮回调修改计数，`on_timer()` 每秒读取并显示时间。`main/wifi_setup.c` 创建热点列表和输入页；`main/wifi_clock.c` 通过后台任务处理扫描、连接、配置保存和校时；`main/wifi_networks.c` 负责扫描结果去重与排序。
 
 `main/ui_fonts.c` 统一管理显示字体。屏幕键盘仍提供英文字母、数字和符号；扫描到的中文 SSID 会原样用于连接，字库覆盖范围外的字符可能显示为方框。字体来源、授权和重新生成步骤详见 [WIFI_CLOCK.md](WIFI_CLOCK.md)。
+
+摄像头从 `main/camera_preview.c` 的 `camera_preview_open()` 开始阅读；后台任务按 V4L2 顺序申请缓冲区、采集和归还帧。`main/camera_frame.c` 只处理画面缩放、字节序和方向，可以单独在电脑上测试。
 
 ## 参考
 
@@ -62,6 +69,8 @@ gcc -std=c11 -Wall -Wextra -Werror -I main tests/wifi_credentials_test.c main/wi
 gcc -std=c11 -Wall -Wextra -Werror -I main tests/wifi_networks_test.c main/wifi_networks.c -o wifi_networks_test.exe
 .\wifi_networks_test.exe
 python tests/font_coverage_test.py
+gcc -std=c11 -Wall -Wextra -Werror -I main tests/camera_frame_test.c main/camera_frame.c -o camera_frame_test.exe
+.\camera_frame_test.exe
 ```
 
-测试程序只使用测试数据；第二组验证同名热点去重、信号排序、结果数量上限和中文名称保留；第三组直接检查生成的字体数据，确认所有中文提示和 6763 个常用汉字有有效点阵。真实扫描、显示、配网、保存及重启恢复需要在开发板上验证。
+测试程序只使用测试数据；第二组验证同名热点去重、信号排序、结果数量上限和中文名称保留；第三组直接检查字体点阵；第四组验证摄像头红绿蓝颜色的字节序、180 度方向、缩放、行填充和长度边界。真实扫描、配网、摄像头采集及触摸显示需要在开发板上验证。

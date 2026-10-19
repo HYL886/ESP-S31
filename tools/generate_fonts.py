@@ -5,7 +5,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
-UI_FILES = ("main.c", "wifi_setup.c", "wifi_credentials.c")
+UI_FILES = ("main.c", "wifi_setup.c", "wifi_credentials.c", "camera_preview.c")
 
 
 def text_characters(filenames):
