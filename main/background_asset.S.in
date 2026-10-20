@@ -1,0 +1,11 @@
+/* SPDX-License-Identifier: CC0-1.0 */
+/* CMake substitutes the asset path; the linker preserves this alignment. */
+.section .rodata.home_background,"a",@progbits
+.balign 4
+.global _binary_home_background_rgb565_start
+.global _binary_home_background_rgb565_end
+.type _binary_home_background_rgb565_start, @object
+_binary_home_background_rgb565_start:
+.incbin "@S31_BACKGROUND_FILE@"
+_binary_home_background_rgb565_end:
+.size _binary_home_background_rgb565_start, . - _binary_home_background_rgb565_start

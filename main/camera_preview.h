@@ -2,5 +2,6 @@
 #pragma once
 #include "lvgl.h"
 
-/* LVGL event callback. Call only on the LVGL task or with the display locked. */
-void camera_preview_open(lv_event_t *event);
+/* Mount in a 352x360 home-page panel and start preview automatically.
+ * Call once on the LVGL task or with the display locked. */
+void camera_preview_create(lv_obj_t *parent);

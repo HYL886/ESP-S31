@@ -22,16 +22,17 @@
 
 #define CAPTURE_WIDTH 640
 #define CAPTURE_HEIGHT 480
-#define PREVIEW_WIDTH 480
-#define PREVIEW_HEIGHT 360
+#define PREVIEW_WIDTH 320
+#define PREVIEW_HEIGHT 240
 #define PREVIEW_BYTES (PREVIEW_WIDTH * PREVIEW_HEIGHT * 2)
 #define CAPTURE_BUFFERS 2
 #define FRAME_TIMEOUT_US 3000000
 
 static const char *TAG = "camera_preview";
-static lv_obj_t *s_overlay;
+static lv_obj_t *s_panel;
 static lv_obj_t *s_image;
 static lv_obj_t *s_status;
+static lv_obj_t *s_toggle_label;
 static TaskHandle_t s_worker;
 static uint32_t s_generation;
 static _Atomic uint32_t s_requested_session;
@@ -63,8 +64,10 @@ static bool publish_frame(uint32_t session, lv_image_dsc_t *frame)
             /* A descriptor is reused every other frame. Invalidate its old cache. */
             lv_image_cache_drop(frame);
             lv_image_set_src(s_image, frame);
+            if (lv_obj_has_flag(s_image, LV_OBJ_FLAG_HIDDEN)) {
+                lv_label_set_text(s_status, "实时画面 320x240");
+            }
             lv_obj_remove_flag(s_image, LV_OBJ_FLAG_HIDDEN);
-            lv_label_set_text(s_status, "实时预览 640x480 / 屏幕 480x360");
             published = true;
         }
         bsp_display_unlock();
@@ -169,7 +172,7 @@ static void capture_session(uint32_t session)
         goto cleanup;
     }
     streaming = true;
-    ESP_LOGI(TAG, "Preview started: RGB565 BE 640x480 -> RGB565 LE 480x360");
+    ESP_LOGI(TAG, "Preview started: RGB565 BE 640x480 -> RGB565 LE 320x240");
     unsigned back = 0;
     int64_t last_frame_us = esp_timer_get_time();
     while (is_current(session)) {
@@ -261,73 +264,80 @@ static void camera_worker(void *argument)
 static void start_requested_session(lv_event_t *event)
 {
     (void)event;
-    if (!s_overlay) return;
+    if (!s_panel) return;
     lv_obj_add_flag(s_image, LV_OBJ_FLAG_HIDDEN);
     lv_image_set_src(s_image, NULL);
     lv_label_set_text(s_status, "正在启动摄像头…");
     if (!s_worker && xTaskCreate(camera_worker, "camera_preview", 6144, NULL, 4,
                                 &s_worker) != pdPASS) {
         lv_label_set_text(s_status, "无法创建摄像头任务，内存不足。");
+        lv_label_set_text(s_toggle_label, "开启");
         return;
     }
+    lv_label_set_text(s_toggle_label, "暂停");
     if (++s_generation == 0) ++s_generation;
     atomic_store(&s_requested_session, s_generation);
     xTaskNotifyGive(s_worker);
 }
 
-static void close_preview(lv_event_t *event)
+static void toggle_preview(lv_event_t *event)
 {
     (void)event;
-    if (!s_overlay) return;
-    lv_obj_t *old_overlay = s_overlay;
-    lv_obj_add_flag(old_overlay, LV_OBJ_FLAG_HIDDEN);
+    if (!s_panel) return;
+    if (atomic_load(&s_requested_session) == 0) {
+        start_requested_session(NULL);
+        return;
+    }
     lv_obj_add_flag(s_image, LV_OBJ_FLAG_HIDDEN);
     lv_image_set_src(s_image, NULL);
     atomic_store(&s_requested_session, 0);
-    s_overlay = s_image = s_status = NULL;
+    lv_label_set_text(s_status, "预览已暂停");
+    lv_label_set_text(s_toggle_label, "开启");
     if (s_worker) xTaskNotifyGive(s_worker);
-    lv_obj_delete_async(old_overlay);
 }
 
 static lv_obj_t *make_button(const char *text, int x, lv_event_cb_t callback)
 {
-    lv_obj_t *button = lv_button_create(s_overlay);
-    lv_obj_set_size(button, 100, 40);
-    lv_obj_align(button, LV_ALIGN_TOP_RIGHT, x, 8);
+    lv_obj_t *button = lv_button_create(s_panel);
+    lv_obj_set_size(button, 62, 32);
+    lv_obj_set_pos(button, x, 12);
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x294550), 0);
+    lv_obj_set_style_shadow_width(button, 0, 0);
     lv_obj_add_event_cb(button, callback, LV_EVENT_CLICKED, NULL);
     lv_obj_t *label = lv_label_create(button);
     lv_label_set_text(label, text);
+    lv_obj_set_style_text_font(label, ui_font_small(), 0);
     lv_obj_center(label);
-    return button;
+    return label;
 }
 
-void camera_preview_open(lv_event_t *event)
+void camera_preview_create(lv_obj_t *parent)
 {
-    (void)event;
-    if (s_overlay) return;
-    s_overlay = lv_obj_create(lv_screen_active());
-    lv_obj_remove_style_all(s_overlay);
-    lv_obj_set_size(s_overlay, lv_pct(100), lv_pct(100));
-    lv_obj_set_style_bg_opa(s_overlay, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(s_overlay, lv_color_hex(0x142030), 0);
-    lv_obj_set_style_text_font(s_overlay, ui_font_normal(), 0);
-    lv_obj_set_style_text_color(s_overlay, lv_color_white(), 0);
-    lv_obj_remove_flag(s_overlay, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *title = lv_label_create(s_overlay);
+    if (s_panel || !parent) return;
+    s_panel = parent;
+    lv_obj_t *title = lv_label_create(s_panel);
     lv_label_set_text(title, "摄像头");
-    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 18, 14);
-    make_button("重试", -130, start_requested_session);
-    make_button("返回", -18, close_preview);
+    lv_obj_set_pos(title, 16, 14);
+    make_button("重试", 205, start_requested_session);
+    s_toggle_label = make_button("开启", 275, toggle_preview);
 
-    s_image = lv_image_create(s_overlay);
+    /* An opaque well marks the picture area before the first frame arrives. */
+    lv_obj_t *well = lv_obj_create(s_panel);
+    lv_obj_remove_style_all(well);
+    lv_obj_set_pos(well, 16, 56);
+    lv_obj_set_size(well, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+    lv_obj_set_style_bg_color(well, lv_color_hex(0x07141B), 0);
+    lv_obj_set_style_bg_opa(well, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(well, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    s_image = lv_image_create(well);
     lv_obj_set_size(s_image, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-    lv_obj_align(s_image, LV_ALIGN_TOP_MID, 0, 60);
+    lv_obj_set_pos(s_image, 0, 0);
     lv_obj_add_flag(s_image, LV_OBJ_FLAG_HIDDEN);
-    s_status = lv_label_create(s_overlay);
+    s_status = lv_label_create(s_panel);
     lv_obj_set_style_text_font(s_status, ui_font_small(), 0);
-    lv_obj_set_width(s_status, 764);
-    lv_obj_set_style_text_align(s_status, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(s_status, LV_ALIGN_BOTTOM_MID, 0, -16);
+    lv_obj_set_style_text_color(s_status, lv_color_hex(0xD5E5E9), 0);
+    lv_obj_set_size(s_status, 320, 44);
+    lv_label_set_long_mode(s_status, LV_LABEL_LONG_WRAP);
+    lv_obj_set_pos(s_status, 16, 306);
     start_requested_session(NULL);
 }

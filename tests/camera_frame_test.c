@@ -62,14 +62,14 @@ static void invalid_sizes_do_not_write(void)
 static void full_preview_bounds(void)
 {
     static uint8_t source[640 * 480 * 2];
-    static uint8_t output[480 * 360 * 2 + 2];
+    static uint8_t output[320 * 240 * 2 + 2];
     for (size_t i = 0; i < sizeof(source); i += 2) {
         source[i] = 0xf8;
         source[i + 1] = 0x00;
     }
     output[0] = output[sizeof(output) - 1] = 0xa5;
     assert(camera_frame_to_rgb565(source, sizeof(source), 640, 480, 1280,
-                                 output + 1, sizeof(output) - 2, 480, 360, true));
+                                 output + 1, sizeof(output) - 2, 320, 240, true));
     for (size_t i = 1; i < sizeof(output) - 1; i += 2) {
         assert(output[i] == 0x00 && output[i + 1] == 0xf8);
     }
